@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Webcam & Upload Threat Detection</title>
+</head>
+<body>
+    <h1>Threat Detection System</h1>
+
+    <!-- Webcam UI -->
+    <video id="video" width="320" height="240" autoplay style="display: none;"></video>
+    <canvas id="canvas" width="320" height="240" style="display: none;"></canvas>
+    <br>
+    <button id="startBtn">Start Webcam</button>
+    <button id="stopBtn" disabled>Stop Webcam</button>
+    
+    <!-- Upload UI -->
+    <h3>Or Upload Image</h3>
+    <input type="file" id="uploadInput" accept="image/*">
+    <button id="uploadBtn">Upload and Predict</button>
+
+    <p id="result">No prediction yet.</p>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const resultText = document.getElementById('result');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const uploadInput = document.getElementById('uploadInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        let stream = null;
+        let intervalId = null;
+
+        // Start Webcam
+        startBtn.onclick = async () => {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+            video.style.display = 'block';
+            stopBtn.disabled = false;
+            startBtn.disabled = true;
+
+            // Capture every 10 seconds
+            intervalId = setInterval(captureAndSend, 10000);
+        };
+
+        // Stop Webcam
+        stopBtn.onclick = () => {
+            clearInterval(intervalId);
+            video.style.display = 'none';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        };
+
+        function captureAndSend() {
+            const context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            canvas.toBlob(blob => {
+                const formData = new FormData();
+                formData.append('file', blob, 'frame.jpg');
+
+                fetch("/predict", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(res => res.json())
+                .then(data => {
+                    resultText.innerText = `Webcam Prediction: ${data.prediction} (Confidence: ${data.confidence}%)`;
+                })
+                .catch(err => {
+                    resultText.innerText = "Error: " + err.message;
+                });
+            }, 'image/jpeg');
+        }
+
+        // Upload Button Logic
+        uploadBtn.onclick = () => {
+            const file = uploadInput.files[0];
+            if (!file) {
+                alert("Please select an image.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch("/predict", {
+                method: "POST",
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                resultText.innerText = `Upload Prediction: ${data.prediction} (Confidence: ${data.confidence}%)`;
+            })
+            .catch(err => {
+                resultText.innerText = "Error: " + err.message;
+            });
+        };
+    </script>
+</body>
+</html>

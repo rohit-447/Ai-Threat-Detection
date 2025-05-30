@@ -1,0 +1,4 @@
+test/
+valid/
+train/
+.venv/
